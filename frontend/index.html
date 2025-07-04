@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemma3 MCP Chat</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Gemma3 MCP Chat</h1>
+            <div class="controls">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="weather-toggle">
+                    <span class="slider"></span>
+                    <span class="label">Weather Tool</span>
+                </label>
+                <div class="status" id="connection-status">CONNECTING</div>
+            </div>
+        </header>
+
+        <div class="chat-container">
+            <div class="messages" id="messages"></div>
+            
+            <div class="input-section">
+                <div class="input-container">
+                    <textarea 
+                        id="message-input" 
+                        placeholder="Type your message..."
+                        rows="1"
+                        maxlength="2000"
+                    ></textarea>
+                    <button id="send-button" type="button">SEND</button>
+                </div>
+                <div class="input-footer">
+                    <span class="char-counter" id="char-counter">0/2000</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="tools.js"></script>
+    <script src="chat.js"></script>
+    <script>
+        // Initialize the chat application
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const charCounter = document.getElementById('char-counter');
+            
+            // Auto-resize textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                
+                // Update character counter
+                const length = this.value.length;
+                charCounter.textContent = `${length}/2000`;
+                charCounter.className = `char-counter ${length > 1800 ? 'warning' : ''}`;
+            });
+            
+            // Send message on Enter (Shift+Enter for new line)
+            messageInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Send button click
+            sendButton.addEventListener('click', sendMessage);
+            
+            // Initialize chat client
+            initializeChat();
+            
+            // Initialize tools
+            initializeTools();
+        });
+        
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            
+            if (message && !window.chatClient.isGenerating) {
+                window.chatClient.sendMessage(message);
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+                document.getElementById('char-counter').textContent = '0/2000';
+                document.getElementById('char-counter').className = 'char-counter';
+            }
+        }
+        
+        function updateSendButton(disabled) {
+            const sendButton = document.getElementById('send-button');
+            sendButton.disabled = disabled;
+            sendButton.textContent = disabled ? 'GENERATING...' : 'SEND';
+        }
+        
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('connection-status');
+            statusEl.textContent = status;
+            statusEl.className = `status ${status.toLowerCase()}`;
+        }
+        
+        // Make functions available globally
+        window.updateSendButton = updateSendButton;
+        window.updateConnectionStatus = updateConnectionStatus;
+    </script>
+</body>
+</html>

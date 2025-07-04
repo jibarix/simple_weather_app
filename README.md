@@ -1,78 +1,125 @@
-## Project Overview
+# Gemma3 MCP Chat
 
-This project provides a minimal implementation of the Model Context Protocol (MCP) using a local Gemma-3 model served via llama.cpp and a simple HTML/JS chat UI. It allows users to interact with the assistant in a chat interface and optionally retrieve weather data through a dedicated tool.
+A minimal Model Context Protocol (MCP) implementation using Gemma-3 via llama.cpp with streaming chat interface and weather tool support.
+
+## Features
+
+- Real-time streaming chat with Gemma-3 model
+- Weather tool integration via OpenWeatherMap API
+- Clean web interface with tool toggles
+- Docker deployment support
+- JSON-RPC backend with FastAPI
 
 ## File Structure
 
 ```
 project-root/
-├── mcp_server/                        # Backend service implementing MCP
+├── mcp_server/                        # Backend MCP server
 │   ├── prompts/
-│   │   └── system_prompts.yaml        # Single system prompt defining assistant behavior and tool schema
+│   │   └── system_prompts.yaml        # System prompt and tool definitions
 │   ├── tools/
-│   │   └── weather_tool.py            # Implements the 'weather' MCP tool via OpenWeatherMap
-│   ├── main.py                        # FastAPI app exposing JSON-RPC /rpc endpoint
-│   ├── llama_client.py                # Wrapper for llama.cpp streaming API with Gemma-3
-│   ├── config.py                      # Configuration: model path, API keys, server settings
-│   └── requirements.txt               # Python dependencies (fastapi, uvicorn, llama-cpp-python)
+│   │   └── weather_tool.py            # Weather tool implementation
+│   ├── main.py                        # FastAPI server with JSON-RPC endpoint
+│   ├── llama_client.py                # Llama.cpp streaming client
+│   ├── config.py                      # Configuration management
+│   └── requirements.txt               # Python dependencies
 │
-├── frontend/                          # Static HTML/JS chat UI
-│   ├── index.html                     # Chat interface and weather toggle switch
-│   ├── chat.js                        # Client code to connect via SSE/WebSocket and render streams
-│   ├── tools.js                       # Manages toggle state and includes tool flags in requests
-│   └── styles.css                     # Basic styling for chat and controls
+├── frontend/                          # Static web interface
+│   ├── index.html                     # Main chat interface
+│   ├── styles.css                     # Styling and responsive design
+│   ├── chat.js                        # Streaming chat client
+│   └── tools.js                       # Tool management
 │
 ├── docker/                            # Docker configurations
-│   ├── Dockerfile.server              # Builds and runs the MCP server
-│   └── Dockerfile.frontend            # Serves the static frontend via a web server
+│   ├── Dockerfile.server              # Backend container
+│   └── Dockerfile.frontend            # Frontend container
 │
-├── .gitignore                         # Specifies files and folders for Git to ignore
-├── README.md                          # Project documentation (this file)
-└── LICENSE.md                         # MIT License
+└── README.md                          # This file
 ```
 
-## Setup Instructions
+## Setup
 
-1. **Clone the repository**:
+### Local Development
 
+1. **Backend Setup**:
    ```bash
-   git clone https://github.com/<your-username>/gemma3-mcp-chat.git
-   cd gemma3-mcp-chat
+   cd mcp_server
+   python -m venv env
+   source env/bin/activate  # or .\env\Scripts\activate on Windows
+   pip install -r requirements.txt
    ```
 
-2. **Backend setup**:
+2. **Configure Environment**:
+   ```bash
+   export MODEL_PATH="/path/to/your/gemma-3-model.gguf"
+   export OPENWEATHER_API_KEY="your-api-key"
+   ```
 
-   * Navigate to `mcp_server/` and create a virtual environment:
+3. **Start Server**:
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
 
-     ```bash
-     python -m venv env
-     .\env\Scripts\activate
-     ```
-   * Install dependencies:
+4. **Frontend**:
+   ```bash
+   cd frontend
+   python -m http.server 8080
+   ```
 
-     ```bash
-     pip install -r requirements.txt
-     ```
-   * Start the server:
+### Docker Deployment
 
-     ```bash
-     uvicorn main:app --reload --port 8000
-     ```
+1. **Build Images**:
+   ```bash
+   docker build -f docker/Dockerfile.server -t mcp-server .
+   docker build -f docker/Dockerfile.frontend -t mcp-frontend .
+   ```
 
-3. **Frontend setup**:
+2. **Run with Docker Compose**:
+   ```yaml
+   version: '3.8'
+   services:
+     mcp-server:
+       build:
+         context: .
+         dockerfile: docker/Dockerfile.server
+       ports:
+         - "8000:8000"
+       environment:
+         - MODEL_PATH=/app/models/gemma-3.gguf
+         - OPENWEATHER_API_KEY=your-key
+       volumes:
+         - ./models:/app/models
+     
+     mcp-frontend:
+       build:
+         context: .
+         dockerfile: docker/Dockerfile.frontend
+       ports:
+         - "8080:80"
+       depends_on:
+         - mcp-server
+   ```
 
-   * Open `frontend/index.html` in your browser, or serve via a simple HTTP server:
+## Usage
 
-     ```bash
-     cd frontend
-     python -m http.server 8080
-     ```
+1. Open browser to `http://localhost:8080`
+2. Toggle weather tool on/off as needed
+3. Type messages and receive streaming responses
+4. Weather queries automatically trigger tool calls when enabled
 
-4. **Interacting**:
+## Configuration
 
-   * Access the chat UI at `http://localhost:8080`.
-   * Type messages in the chat box, use the weather toggle to enable or disable the weather tool, and view streamed responses from Gemma-3.
+Environment variables in `mcp_server/config.py`:
+- `MODEL_PATH`: Path to Gemma-3 GGUF model file
+- `OPENWEATHER_API_KEY`: OpenWeatherMap API key
+- `SERVER_HOST`: Server host (default: 0.0.0.0)
+- `SERVER_PORT`: Server port (default: 8000)
+
+## API Endpoints
+
+- `POST /rpc`: JSON-RPC endpoint for chat and tool operations
+- `GET /health`: Health check endpoint
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE.md` for details.
+MIT License
