@@ -92,19 +92,19 @@ async def generate_chat_stream(messages: list, tools_enabled: bool, request_id: 
                 })
                 
             elif chunk_type == "tool_result":
-                # Send tool results
+                # Send tool calls first
                 if tool_calls:
                     yield f"data: {json.dumps({'type': 'tool_calls', 'tool_calls': tool_calls})}\n\n"
-                    tool_calls = []
                 
-                # Format tool result for display
+                # Format and send tool result
                 result = chunk["result"]
                 if isinstance(result, dict) and "error" in result:
-                    content = f"Error: {result['error']}"
+                    content = f"\n\nError: {result['error']}"
                 else:
-                    content = format_tool_result(result)
+                    content = f"\n\n{format_tool_result(result)}"
                 
                 yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                tool_calls = []  # Clear tool calls after sending
                 
             elif chunk_type == "end":
                 # Send final tool calls if any
@@ -139,9 +139,9 @@ async def generate_chat_response(messages: list, tools_enabled: bool) -> dict:
             elif chunk_type == "tool_result":
                 result = chunk["result"]
                 if isinstance(result, dict) and "error" in result:
-                    content += f"\nError: {result['error']}"
+                    content += f"\n\nError: {result['error']}"
                 else:
-                    content += f"\n{format_tool_result(result)}"
+                    content += f"\n\n{format_tool_result(result)}"
             elif chunk_type == "end":
                 break
         
@@ -159,8 +159,15 @@ def format_tool_result(result: dict) -> str:
         return f"Error: {result['error']}"
     
     if isinstance(result, dict) and "location" in result:
-        # Weather result formatting
-        return f"Weather in {result['location']}: {result['temperature']}°C, {result['description']}"
+        # Weather result formatting with Fahrenheit
+        location = result.get('location', 'Unknown')
+        temp = result.get('temperature', 'N/A')
+        description = result.get('description', 'No description')
+        feels_like = result.get('feels_like', 'N/A')
+        humidity = result.get('humidity', 'N/A')
+        wind_speed = result.get('wind_speed', 'N/A')
+        
+        return f"Weather in {location}: {temp}°F, {description}. Feels like {feels_like}°F. Humidity: {humidity}%, Wind: {wind_speed} mph"
     
     return str(result)
 

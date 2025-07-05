@@ -16,7 +16,7 @@ class WeatherTool:
             params = {
                 "q": location,
                 "appid": self.api_key,
-                "units": "metric"
+                "units": "imperial"  # Use imperial units for Fahrenheit
             }
             
             response = requests.get(self.base_url, params=params, timeout=10)
