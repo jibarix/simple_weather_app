@@ -2,16 +2,23 @@ import json
 import yaml
 from typing import Iterator, Dict, Any
 from llama_cpp import Llama
-from .config import MODEL_PATH, MODEL_CONTEXT_SIZE, MODEL_TEMPERATURE, MODEL_MAX_TOKENS, PROMPTS_PATH
-from .tools.weather_tool import execute_tool
+from config import MODEL_PATH, MODEL_CONTEXT_SIZE, MODEL_TEMPERATURE, MODEL_MAX_TOKENS, PROMPTS_PATH
+from tools.weather_tool import execute_tool
 
 class LlamaClient:
     def __init__(self):
-        self.llm = Llama(
-            model_path=MODEL_PATH,
-            n_ctx=MODEL_CONTEXT_SIZE,
-            verbose=False
-        )
+        try:
+            print(f"Loading model from: {MODEL_PATH}")
+            self.llm = Llama(
+                model_path=MODEL_PATH,
+                n_ctx=MODEL_CONTEXT_SIZE,
+                n_gpu_layers=0,  # Force CPU-only
+                verbose=True     # Show loading details
+            )
+            print("Model loaded successfully")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            raise
         self.system_prompt = self._load_system_prompt()
     
     def _load_system_prompt(self) -> str:

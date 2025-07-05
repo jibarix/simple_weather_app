@@ -1,6 +1,6 @@
 import requests
 import json
-from ..config import OPENWEATHER_API_KEY, OPENWEATHER_BASE_URL
+from config import OPENWEATHER_API_KEY, OPENWEATHER_BASE_URL
 
 class WeatherTool:
     def __init__(self):

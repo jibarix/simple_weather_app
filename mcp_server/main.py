@@ -4,8 +4,8 @@ from fastapi.responses import StreamingResponse
 import json
 import asyncio
 from typing import Dict, Any
-from .llama_client import LlamaClient
-from .config import SERVER_HOST, SERVER_PORT, CORS_ORIGINS
+from llama_client import LlamaClient
+from config import SERVER_HOST, SERVER_PORT, CORS_ORIGINS
 
 app = FastAPI(title="Gemma3 MCP Server", version="1.0.0")
 

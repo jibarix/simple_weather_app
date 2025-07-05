@@ -39,13 +39,40 @@ project-root/
 
 ## Setup
 
-### Local Development
+### Local Development (Windows)
 
 1. **Backend Setup**:
    ```bash
    cd mcp_server
    python -m venv env
-   source env/bin/activate  # or .\env\Scripts\activate on Windows
+   .\env\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+2. **Configure Environment**:
+   ```bash
+   set MODEL_PATH="C:\path\to\your\gemma-3-model.gguf"
+   set OPENWEATHER_API_KEY="your-api-key"
+   ```
+
+3. **Start Server**:
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+
+4. **Frontend** (open new terminal):
+   ```bash
+   cd frontend
+   python -m http.server 8080
+   ```
+
+### Local Development (Linux/macOS)
+
+1. **Backend Setup**:
+   ```bash
+   cd mcp_server
+   python -m venv env
+   source env/bin/activate
    pip install -r requirements.txt
    ```
 
