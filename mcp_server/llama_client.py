@@ -12,8 +12,8 @@ class LlamaClient:
             self.llm = Llama(
                 model_path=MODEL_PATH,
                 n_ctx=MODEL_CONTEXT_SIZE,
-                n_gpu_layers=0,  # Force CPU-only
-                verbose=True     # Show loading details
+                n_gpu_layers=0,
+                verbose=False  # Reduce verbose output
             )
             print("Model loaded successfully")
         except Exception as e:
@@ -46,14 +46,12 @@ class LlamaClient:
     def _extract_tool_call(self, text: str) -> tuple[str, dict]:
         """Extract tool call from model response"""
         try:
-            # Look for JSON-like tool calls
             start = text.find('{"tool_name":')
             if start == -1:
                 start = text.find('{"tool_name" :')
             if start == -1:
                 return None, None
             
-            # Find the end of the JSON
             brace_count = 0
             end = start
             for i, char in enumerate(text[start:], start):
@@ -81,30 +79,53 @@ class LlamaClient:
         formatted_prompt = self._format_messages(messages)
         
         response_text = ""
+        buffered_tokens = []
         
         # Generate response
-        for output in self.llm(
-            formatted_prompt,
-            max_tokens=MODEL_MAX_TOKENS,
-            temperature=MODEL_TEMPERATURE,
-            stream=True,
-            stop=["<end_of_turn>", "<start_of_turn>"]
-        ):
-            if 'choices' in output and len(output['choices']) > 0:
-                choice = output['choices'][0]
-                if 'delta' in choice and 'content' in choice['delta']:
-                    token = choice['delta']['content']
+        try:
+            for output in self.llm(
+                formatted_prompt,
+                max_tokens=MODEL_MAX_TOKENS,
+                temperature=MODEL_TEMPERATURE,
+                stream=True,
+                stop=["<end_of_turn>", "<start_of_turn>"]
+            ):
+                # Handle different output formats
+                token = ""
+                if isinstance(output, dict):
+                    if 'choices' in output and len(output['choices']) > 0:
+                        choice = output['choices'][0]
+                        if 'delta' in choice and 'content' in choice['delta']:
+                            token = choice['delta']['content']
+                        elif 'text' in choice:
+                            token = choice['text']
+                    elif 'text' in output:
+                        token = output['text']
+                elif isinstance(output, str):
+                    token = output
+                
+                if token:
                     response_text += token
+                    buffered_tokens.append(token)
+                    
+                    # Check for tool calls if tools are enabled
+                    if tools_enabled:
+                        tool_name, parameters = self._extract_tool_call(response_text)
+                        if tool_name and parameters:
+                            # Tool call detected - execute it instead of showing model response
+                            yield {"type": "tool_call", "tool_name": tool_name, "parameters": parameters}
+                            
+                            # Execute the tool
+                            tool_result = execute_tool(tool_name, parameters)
+                            yield {"type": "tool_result", "result": tool_result}
+                            yield {"type": "end"}
+                            return
+                    
+                    # Stream token if no tool call detected
                     yield {"type": "token", "content": token}
         
-        # Check for tool calls if tools are enabled
-        if tools_enabled:
-            tool_name, parameters = self._extract_tool_call(response_text)
-            if tool_name and parameters:
-                yield {"type": "tool_call", "tool_name": tool_name, "parameters": parameters}
-                
-                # Execute the tool
-                tool_result = execute_tool(tool_name, parameters)
-                yield {"type": "tool_result", "result": tool_result}
+        except Exception as e:
+            print(f"Error during generation: {e}")
+            yield {"type": "token", "content": f"Error: {str(e)}"}
         
         yield {"type": "end"}
