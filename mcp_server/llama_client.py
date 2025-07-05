@@ -49,38 +49,28 @@ class LlamaClient:
         formatted += "<start_of_turn>model\n"
         return formatted
     
-    def _extract_tool_call(self, text: str) -> tuple[str, dict, str]:
-        """Extract tool call from model response, handling both fenced and unfenced JSON"""
-        try:
-            # Look for either ```json fenced or bare JSON tool call pattern
-            json_block = re.search(
-                r'```json\s*({[^{}]*"tool_name"\s*:\s*"[^"]*"[^{}]*})\s*```'
-                r'|({[^{}]*"tool_name"\s*:\s*"[^"]*"[^{}]*})',
-                text, re.DOTALL
-            )
-            
-            if json_block:
-                # Extract the JSON - either from group 1 (fenced) or group 2 (unfenced)
-                raw_json = json_block.group(1) or json_block.group(2)
-                
-                try:
-                    tool_call = json.loads(raw_json)
-                    tool_name = tool_call.get('tool_name')
-                    parameters = tool_call.get('parameters', {})
-                    
-                    # Remove the entire matched block (including fences if present)
-                    clean_text = text.replace(json_block.group(0), '').strip()
-                    # Clean up any extra spaces or newlines
-                    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-                    
-                    return tool_name, parameters, clean_text
-                except json.JSONDecodeError:
-                    pass
-            
+    def _extract_tool_call(self, text: str):
+        start = text.find("{")
+        if start == -1:
             return None, None, text
-            
-        except Exception:
-            return None, None, text
+
+        depth = 0
+        for i, ch in enumerate(text[start:], start=start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:             # <- we found the matching closing brace
+                    candidate = text[start:i+1]
+                    try:
+                        tool_call = json.loads(candidate)
+                        tool_name = tool_call.get("tool_name")
+                        params    = tool_call.get("parameters", {})
+                        clean     = (text[:start] + text[i+1:]).strip()
+                        return tool_name, params, re.sub(r"\s+", " ", clean)
+                    except json.JSONDecodeError:
+                        break
+        return None, None, text
     
     def stream_chat(self, messages: list, tools_enabled: bool = False) -> Iterator[Dict[str, Any]]:
         """Stream chat response with optional tool support"""

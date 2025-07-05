@@ -70,53 +70,50 @@ async def json_rpc_endpoint(request: Request):
         }
 
 async def generate_chat_stream(messages: list, tools_enabled: bool, request_id: str):
-    """Generate streaming chat response"""
+    """Generate streaming chat response."""
     try:
-        # Send initial response
+        # Tell the client a new stream has begun
         yield f"data: {json.dumps({'type': 'start', 'id': request_id})}\n\n"
-        
-        tool_calls = []
-        
+
+        tool_calls: list[dict] = []
+
+        # Relay chunks from the model/tool runner
         for chunk in llama_client.stream_chat(messages, tools_enabled):
             chunk_type = chunk.get("type")
-            
+
             if chunk_type == "token":
-                # Stream content tokens
+                # Ordinary content token from the model
                 yield f"data: {json.dumps({'type': 'content', 'content': chunk['content']})}\n\n"
-                
+
             elif chunk_type == "tool_call":
-                # Collect tool calls
-                tool_calls.append({
-                    "name": chunk["tool_name"],
-                    "arguments": chunk["parameters"]
-                })
-                
+                # Store the pending call so the backend can execute it
+                tool_calls.append(
+                    {
+                        "name": chunk["tool_name"],
+                        "arguments": chunk["parameters"],
+                    }
+                )
+
             elif chunk_type == "tool_result":
-                # Send tool calls first
-                if tool_calls:
-                    yield f"data: {json.dumps({'type': 'tool_calls', 'tool_calls': tool_calls})}\n\n"
-                
-                # Format and send tool result
+                # Format and send tool result (no 'tool_calls' debug event)
                 result = chunk["result"]
+
                 if isinstance(result, dict) and "error" in result:
                     content = f"\n\nError: {result['error']}"
                 else:
                     content = f"\n\n{format_tool_result(result)}"
-                
+
                 yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
-                tool_calls = []  # Clear tool calls after sending
-                
+                tool_calls.clear()  # Ready for the next turn
+
             elif chunk_type == "end":
-                # Send final tool calls if any
-                if tool_calls:
-                    yield f"data: {json.dumps({'type': 'tool_calls', 'tool_calls': tool_calls})}\n\n"
-                
-                # Send completion
+                # Stream completion marker (no outstanding 'tool_calls' event)
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
-                
-        await asyncio.sleep(0.01)  # Small delay to ensure proper streaming
-        
+
+        # Small delay to ensure proper streaming termination
+        await asyncio.sleep(0.01)
+
     except Exception as e:
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
