@@ -1,0 +1,20 @@
+# mcp_server/requirements.txt
+mcp>=1.0.0
+requests>=2.31.0
+
+# mcp_client/requirements.txt
+mcp>=1.0.0
+fastapi>=0.104.1
+uvicorn>=0.24.0
+
+# chat_service/requirements.txt
+llama-cpp-python>=0.2.20
+pyyaml>=6.0.1
+
+# Root requirements.txt (for combined deployment)
+mcp>=1.0.0
+fastapi>=0.104.1
+uvicorn>=0.24.0
+llama-cpp-python>=0.2.20
+pyyaml>=6.0.1
+requests>=2.31.0

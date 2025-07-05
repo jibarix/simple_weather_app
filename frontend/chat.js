@@ -1,4 +1,4 @@
-// Chat client for communicating with the MCP server
+// Updated chat client for MCP-integrated backend
 class ChatClient {
     constructor(serverUrl = 'http://localhost:8000') {
         this.serverUrl = serverUrl;
@@ -17,7 +17,9 @@ class ChatClient {
         try {
             const response = await fetch(`${this.serverUrl}/health`);
             if (response.ok) {
-                window.updateConnectionStatus('CONNECTED');
+                const data = await response.json();
+                const mcpConnected = data.details?.mcp_status?.connected;
+                window.updateConnectionStatus(mcpConnected ? 'CONNECTED' : 'ERROR');
             } else {
                 window.updateConnectionStatus('ERROR');
             }
@@ -33,11 +35,9 @@ class ChatClient {
         this.isGenerating = true;
         window.updateSendButton(true);
         
-        // Add user message
         this.addMessage('user', content);
         this.messages.push({ role: 'user', content });
         
-        // Show typing indicator
         this.showTypingIndicator();
         
         try {
@@ -88,7 +88,6 @@ class ChatClient {
             
             buffer += decoder.decode(value, { stream: true });
             
-            // Process complete lines
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
             
@@ -106,9 +105,6 @@ class ChatClient {
                             
                             assistantMessageEl.textContent = this.currentResponse;
                             this.scrollToBottom();
-                        }
-                        else if (data.type === 'tool_calls') {
-                            this.addToolCallMessage(data.tool_calls);
                         }
                         else if (data.type === 'done') {
                             if (this.currentResponse) {
@@ -140,17 +136,6 @@ class ChatClient {
     
     addSystemMessage(content) {
         this.addMessage('system', content);
-    }
-    
-    addToolCallMessage(toolCalls) {
-        for (const toolCall of toolCalls) {
-            const messageEl = document.createElement('div');
-            messageEl.className = 'message tool-call';
-            messageEl.textContent = `Calling ${toolCall.name}(${JSON.stringify(toolCall.arguments)})`;
-            
-            this.messagesContainer.appendChild(messageEl);
-        }
-        this.scrollToBottom();
     }
     
     showTypingIndicator() {
@@ -187,10 +172,8 @@ class ChatClient {
     }
 }
 
-// Global chat client instance
 window.chatClient = new ChatClient();
 
-// Initialize chat when DOM is ready
 function initializeChat() {
     window.chatClient.initialize();
 }
