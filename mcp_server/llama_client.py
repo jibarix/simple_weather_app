@@ -32,9 +32,14 @@ class LlamaClient:
             print(f"Error loading system prompt: {e}")
             return "You are a helpful AI assistant."
     
-    def _format_messages(self, messages: list) -> str:
+    def _format_messages(self, messages: list, tools_enabled: bool) -> str:
         """Format messages for Gemma-3 chat template"""
-        formatted = f"<bos><start_of_turn>system\n{self.system_prompt}<end_of_turn>\n"
+        # Add tool enablement context to system prompt
+        system_context = self.system_prompt
+        if not tools_enabled:
+            system_context += "\n\nIMPORTANT: All tools are disabled for this conversation. Answer normally without mentioning tools."
+        
+        formatted = f"<bos><start_of_turn>system\n{system_context}<end_of_turn>\n"
         
         for message in messages:
             role = message.get('role', 'user')
@@ -45,21 +50,26 @@ class LlamaClient:
         return formatted
     
     def _extract_tool_call(self, text: str) -> tuple[str, dict, str]:
-        """Extract tool call from model response, return tool_name, parameters, clean_text"""
+        """Extract tool call from model response, handling both fenced and unfenced JSON"""
         try:
-            # Look for JSON tool call pattern
-            json_pattern = r'\{[^}]*"tool_name"\s*:\s*"([^"]*)"[^}]*\}'
-            match = re.search(json_pattern, text, re.DOTALL)
+            # Look for either ```json fenced or bare JSON tool call pattern
+            json_block = re.search(
+                r'```json\s*({[^{}]*"tool_name"\s*:\s*"[^"]*"[^{}]*})\s*```'
+                r'|({[^{}]*"tool_name"\s*:\s*"[^"]*"[^{}]*})',
+                text, re.DOTALL
+            )
             
-            if match:
-                json_str = match.group(0)
+            if json_block:
+                # Extract the JSON - either from group 1 (fenced) or group 2 (unfenced)
+                raw_json = json_block.group(1) or json_block.group(2)
+                
                 try:
-                    tool_call = json.loads(json_str)
+                    tool_call = json.loads(raw_json)
                     tool_name = tool_call.get('tool_name')
                     parameters = tool_call.get('parameters', {})
                     
-                    # Remove the tool call JSON from the text
-                    clean_text = text.replace(json_str, '').strip()
+                    # Remove the entire matched block (including fences if present)
+                    clean_text = text.replace(json_block.group(0), '').strip()
                     # Clean up any extra spaces or newlines
                     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
                     
@@ -74,7 +84,7 @@ class LlamaClient:
     
     def stream_chat(self, messages: list, tools_enabled: bool = False) -> Iterator[Dict[str, Any]]:
         """Stream chat response with optional tool support"""
-        formatted_prompt = self._format_messages(messages)
+        formatted_prompt = self._format_messages(messages, tools_enabled)
         
         # Generate complete response first
         response_text = ""
@@ -109,7 +119,7 @@ class LlamaClient:
             
             if tool_name and parameters:
                 # Tool call detected
-                # Send clean text first
+                # Send clean text first if any
                 if clean_text.strip():
                     # Stream clean text word by word for better UX
                     words = clean_text.split()
