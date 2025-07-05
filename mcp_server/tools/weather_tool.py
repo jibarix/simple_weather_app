@@ -1,53 +1,78 @@
-import requests
-import json
-from config import OPENWEATHER_API_KEY, OPENWEATHER_BASE_URL
+# weather_tool.py
+#
+# Parameters  {"location": "City, CC"}  (CC = ISO-3166 code or US state / territory)
+# Returns     {
+#               "location": "San Juan, PR",
+#               "local_time": "2025-07-04 14:27",
+#               "temperature": 86.3,
+#               "feels_like": 90.0,
+#               "humidity": 77,
+#               "wind_speed": 12,
+#               "description": "sunny"
+#             }
+# Errors      {"error": "..."}
+from __future__ import annotations
+import os, requests, datetime as dt
 
-class WeatherTool:
-    def __init__(self):
-        self.api_key = OPENWEATHER_API_KEY
-        self.base_url = OPENWEATHER_BASE_URL
-    
-    def get_weather(self, location: str) -> dict:
-        """Get current weather for a location"""
-        if not self.api_key:
-            return {"error": "OpenWeather API key not configured"}
-        
-        try:
-            params = {
-                "q": location,
-                "appid": self.api_key,
-                "units": "imperial"  # Use imperial units for Fahrenheit
-            }
-            
-            response = requests.get(self.base_url, params=params, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            return {
-                "location": data["name"],
-                "country": data["sys"]["country"],
-                "temperature": data["main"]["temp"],
-                "feels_like": data["main"]["feels_like"],
-                "description": data["weather"][0]["description"],
-                "humidity": data["main"]["humidity"],
-                "wind_speed": data["wind"]["speed"]
-            }
-            
-        except requests.exceptions.RequestException as e:
-            return {"error": f"Failed to fetch weather data: {str(e)}"}
-        except KeyError as e:
-            return {"error": f"Unexpected response format: {str(e)}"}
-        except Exception as e:
-            return {"error": f"Weather service error: {str(e)}"}
+API_KEY = os.getenv("OPENWEATHER_API_KEY", "").strip()
+if not API_KEY:
+    raise RuntimeError("Set the OPENWEATHER_API_KEY environment variable")
+
+GEO_URL     = "https://api.openweathermap.org/geo/1.0/direct"
+CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
 
 def execute_tool(tool_name: str, parameters: dict) -> dict:
-    """Execute a tool with given parameters"""
-    if tool_name == "weather":
-        weather_tool = WeatherTool()
-        location = parameters.get("location")
-        if not location:
-            return {"error": "Location parameter is required"}
-        return weather_tool.get_weather(location)
-    else:
+    if tool_name != "weather":
         return {"error": f"Unknown tool: {tool_name}"}
+
+    # 1. Parse “City, CC”
+    loc = parameters.get("location", "").strip()
+    if "," not in loc:
+        return {"error": "Location must be 'City, CC' (e.g. 'San Juan, PR')"}
+    city, cc = (p.strip() for p in loc.split(",", 1))
+    if len(cc) != 2:
+        return {"error": "Country/state code must be two letters"}
+
+    # 2. Geocode
+    try:
+        geo = requests.get(
+            GEO_URL,
+            params={"q": f"{city},{cc}", "limit": 1, "appid": API_KEY},
+            timeout=7,
+        ).json()
+    except requests.RequestException as exc:
+        return {"error": f"Geocoding failed: {exc}"}
+    if not geo:
+        return {"error": f"Location not found: {city}, {cc.upper()}"}
+    lat, lon = geo[0]["lat"], geo[0]["lon"]
+
+    # 3. Current weather (imperial units → °F, mph)
+    try:
+        wx = requests.get(
+            CURRENT_URL,
+            params={"lat": lat, "lon": lon, "units": "imperial", "appid": API_KEY},
+            timeout=7,
+        ).json()
+    except requests.RequestException as exc:
+        return {"error": f"Weather request failed: {exc}"}
+
+    # 4. Build result ─ include local time
+    try:
+        unix_utc  = wx["dt"]                      # seconds since epoch (UTC)
+        tz_shift  = wx.get("timezone", 0)         # seconds east of UTC  ﻿:contentReference[oaicite:0]{index=0}
+        local_dt  = dt.datetime.utcfromtimestamp(unix_utc + tz_shift)
+        local_str = local_dt.strftime("%Y-%m-%d %H:%M")
+        main, wind = wx["main"], wx["wind"]
+        desc = wx["weather"][0]["description"]
+    except (KeyError, IndexError, TypeError):
+        return {"error": "Unexpected response format from OpenWeather"}
+
+    return {
+        "location": f"{city}, {cc.upper()}",
+        "local_time": local_str,
+        "temperature": main["temp"],
+        "feels_like": main["feels_like"],
+        "humidity": main["humidity"],
+        "wind_speed": wind["speed"],
+        "description": desc,
+    }

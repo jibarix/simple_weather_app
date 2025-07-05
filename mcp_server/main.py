@@ -151,21 +151,19 @@ async def generate_chat_response(messages: list, tools_enabled: bool) -> dict:
         return {"error": str(e)}
 
 def format_tool_result(result: dict) -> str:
-    """Format tool result for display"""
-    if isinstance(result, dict) and "error" in result:
-        return f"Error: {result['error']}"
-    
     if isinstance(result, dict) and "location" in result:
-        # Weather result formatting with Fahrenheit
-        location = result.get('location', 'Unknown')
-        temp = result.get('temperature', 'N/A')
-        description = result.get('description', 'No description')
-        feels_like = result.get('feels_like', 'N/A')
-        humidity = result.get('humidity', 'N/A')
-        wind_speed = result.get('wind_speed', 'N/A')
-        
-        return f"Weather in {location}: {temp}°F, {description}. Feels like {feels_like}°F. Humidity: {humidity}%, Wind: {wind_speed} mph"
-    
+        time  = result.get("local_time", "")
+        temp  = round(result["temperature"])
+        feel  = round(result["feels_like"])
+        hum   = result["humidity"]
+        wind  = result["wind_speed"]
+        desc  = result["description"]
+
+        return (
+            f"Weather in {result['location']} (local time {time}): "
+            f"{temp}°F, {desc}. Feels like {feel}°F. "
+            f"Humidity: {hum}%, Wind: {wind} mph"
+        )
     return str(result)
 
 if __name__ == "__main__":
