@@ -6,14 +6,20 @@ API Layer - FastAPI endpoints for MCP-integrated chat service
 import os
 import json
 import asyncio
+import sys
+from pathlib import Path
 from typing import Dict, Any
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 
-from mcp_client import MCPOrchestrator
-from chat_service import ChatHandler
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from mcp_client.client import MCPOrchestrator
+from chat_service.chat_handler import ChatHandler
 
 # Configuration
 MODEL_PATH = os.getenv("MODEL_PATH", "./models/gemma-2-2b-it-q4_k_m.gguf")
@@ -108,10 +114,6 @@ async def generate_chat_stream(messages: list, tools_enabled: bool, request_id: 
             
             if chunk_type == "token":
                 yield f"data: {json.dumps({'type': 'content', 'content': chunk['content']})}\n\n"
-            
-            elif chunk_type == "tool_call":
-                # No separate tool_calls event - just continue with content
-                pass
             
             elif chunk_type == "tool_result":
                 result = chunk["result"]
