@@ -1,4 +1,4 @@
-# Gemma3 MCP Chat
+# Gemma-3 MCP Chat
 
 A minimal Model Context Protocol (MCP) implementation using Gemma-3 via llama.cpp with streaming chat interface and weather tool support.
 
@@ -146,6 +146,12 @@ Environment variables in `mcp_server/config.py`:
 
 - `POST /rpc`: JSON-RPC endpoint for chat and tool operations
 - `GET /health`: Health check endpoint
+
+## Resources
+
+- **Gemma-3 Model**: [Download from Hugging Face](https://huggingface.co/google/gemma-3-12b-it-qat-q4_0-gguf)
+- **OpenWeatherMap API**: [Get your API key](https://openweathermap.org/)
+- **Model Context Protocol**: [Official documentation](https://modelcontextprotocol.io/introduction)
 
 ## License
 
